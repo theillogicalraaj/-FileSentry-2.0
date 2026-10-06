@@ -1,0 +1,47 @@
+name: filesentry
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: filesentry
+      POSTGRES_USER: filesentry
+      POSTGRES_PASSWORD: filesentry_dev_only
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U filesentry -d filesentry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://filesentry:filesentry_dev_only@db:5432/filesentry
+      JWT_SECRET: change-this-for-local-only
+      MAX_UPLOAD_MB: 25
+      UPLOAD_DIR: /app/quarantine
+      CORS_ORIGINS: http://localhost:5173
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - quarantine:/app/quarantine
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      VITE_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+volumes:
+  db_data:
+  quarantine:
+  frontend_node_modules:
